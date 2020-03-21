@@ -10,8 +10,11 @@ import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -23,6 +26,7 @@ import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.JOptionPane;
+import org.postgresql.util.PSQLException;
 
 /**
  *
@@ -44,10 +48,11 @@ public class App extends javax.swing.JFrame {
 
         cargarDatosConfigJson(configJson);
 
+        crearTablas();
+
         File f = new File(datosConexion.getApp().get("directory"));
         sincroCarpetas(f);
-
-
+        sincroArchivos(f);
     }
 
     /**
@@ -175,43 +180,152 @@ public class App extends javax.swing.JFrame {
         for (File carpeta : carpetas) {
             if (carpeta.isDirectory()) {
                 dir = carpeta.getAbsolutePath().replace(datosConexion.getApp().get("directory"), ".");
-                System.out.println(dir);
-                crearCarpetas(dir);
+                insertarCarpeta(dir);
                 sincroCarpetas(carpeta);
             }
         }
 
     }
 
-    private void crearCarpetas(String nombreCarpeta) {
+    private void sincroArchivos(File file) {
+
+        File[] archivos = file.listFiles();
+
+        String dir = "";
+        String arch = "";
+
+        for (File archivo : archivos) {
+            if (archivo.isFile()) {
+                dir = archivo.getParent().replace(datosConexion.getApp().get("directory"), ".");
+                arch = archivo.getName();
+                insertarArchivo(arch, dir);
+            } else {
+                sincroArchivos(archivo);
+            }
+        }
+
+    }
+
+    private void insertarCarpeta(String nombreCarpeta) {
 
         String sql = "insert into public.directorios(nombre) values(?)";
 
-        long id;
+        long id = 0;
 
-        try (Connection conn = conectarDB(datosConexion);
-                
-                PreparedStatement pstmt = conn.prepareStatement(sql,
-                        Statement.RETURN_GENERATED_KEYS)) {
+        try {
+            Connection conn = conectarDB(datosConexion);
+
+            PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
 
             pstmt.setString(1, nombreCarpeta);
 
             int affectedRows = pstmt.executeUpdate();
             // check the affected rows 
-            if (affectedRows > 0) {
-                // get the ID back
-                try (ResultSet rs = pstmt.getGeneratedKeys()) {
+            if (affectedRows > 0) // get the ID back
+            {
+                try {
+                    ResultSet rs = pstmt.getGeneratedKeys();
                     if (rs.next()) {
                         id = rs.getLong(1);
-                        System.out.println("Se insertó la fila " + id);
-                        conn.close();
                     }
+                    System.out.println("Se insertó la fila " + id);
+                    conn.close();
+
                 } catch (SQLException ex) {
                     System.out.println(ex.getMessage());
                 }
             }
+
         } catch (SQLException ex) {
             System.out.println(ex.getMessage());
+        }
+
+    }
+
+    private void insertarArchivo(String archivo, String dir) {
+        //Collemos o arquivo
+        String ruta = datosConexion.getApp().get("directory") + dir.substring(1) + File.separator + archivo;
+        File file = new File(ruta);
+
+        Connection conn;
+
+        try {
+            conn = conectarDB(datosConexion);
+
+            int idDir = obtenerIdDir(dir, conn);
+
+            FileInputStream fis = new FileInputStream(file);
+
+            //Creamos a consulta que inserta a imaxe na base de datos
+            String sqlInsert = "insert into archivos (nombre, archivo, dir) VALUES (?, ?, ?);";
+            PreparedStatement ps = conn.prepareStatement(sqlInsert);
+
+            //Engadimos como primeiro parámetro o nome do arquivo
+            ps.setString(1, archivo);
+            ps.setInt(3, idDir);
+
+            //Engadimos como segundo parámetro o arquivo e a súa lonxitude
+            ps.setBinaryStream(2, fis, (int) file.length());
+
+            //Executamos a consulta
+            ps.executeUpdate();
+
+            //Cerrramos a consulta e o arquivo aberto
+            ps.close();
+            fis.close();
+        } catch (SQLException ex) {
+            System.out.println("La entrada ya existe.");
+        } catch (FileNotFoundException ex) {
+            Logger.getLogger(App.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
+            Logger.getLogger(App.class.getName()).log(Level.SEVERE, null, ex);
+        }
+
+    }
+
+    private void crearTablas() {
+
+        try {
+            Connection conn = conectarDB(datosConexion);
+
+            String sqlTableCreationDirectorios = "create table if not exists "
+                    + "directorios(id serial, nombre text, primary key (id), "
+                    + "constraint nombre_unico unique (nombre));";
+            String sqlTableCreationArchivos = "create table if not exists "
+                    + "archivos(id serial, nombre text, archivo bytea, "
+                    + "dir integer, primary key (id), "
+                    + "constraint nombre_dir_unico unique (nombre, dir));";
+
+            CallableStatement createFunction = conn.prepareCall(sqlTableCreationDirectorios);
+            CallableStatement createFunction2 = conn.prepareCall(sqlTableCreationArchivos);
+            createFunction.execute();
+            createFunction2.execute();
+
+            createFunction.close();
+            createFunction2.close();
+
+        } catch (SQLException ex) {
+            Logger.getLogger(App.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+
+    private int obtenerIdDir(String dir, Connection conn) {
+
+        try {
+            
+            String sql = "select id from directorios where nombre = ?";
+            
+            PreparedStatement pst = conn.prepareStatement(sql);
+            pst.setString(1, dir);
+            ResultSet rs = pst.executeQuery();
+
+            rs.next();
+            return rs.getInt("id");
+
+
+        } catch (SQLException ex) {
+            Logger.getLogger(App.class.getName()).log(Level.SEVERE, null, ex);
+            return 0;
         }
 
     }
