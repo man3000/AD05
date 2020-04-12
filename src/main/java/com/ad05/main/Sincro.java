@@ -11,5 +11,6 @@ package com.ad05.main;
  */
 public interface Sincro {
     
+    public void sincronizarArchivo(int id);
     
 }

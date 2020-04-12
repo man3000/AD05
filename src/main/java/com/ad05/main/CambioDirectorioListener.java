@@ -21,9 +21,12 @@ public class CambioDirectorioListener extends Thread {
 
     private Connection conn;
     private PGConnection pgconn;
+    
+    private Sincro sincro;
 
-    public CambioDirectorioListener(Connection conn) {
+    public CambioDirectorioListener(Connection conn, Sincro s) {
         this.conn = conn;
+        
         try {
             pgconn = conn.unwrap(PGConnection.class);
 
@@ -31,6 +34,8 @@ public class CambioDirectorioListener extends Thread {
 
             stmt.execute("LISTEN cambio_directorio");
             stmt.close();
+            
+            conn.close();
 
         } catch (SQLException ex) {
             System.out.println("El error en la notificación es: " + ex.getMessage());
@@ -46,7 +51,8 @@ public class CambioDirectorioListener extends Thread {
                 if (notifications != null) {
                     
                     for (PGNotification notification : notifications) {
-                        System.out.println("Se recibido una notificación: " + notification.getParameter());
+                        System.out.println("Se ha insertado un directorio con id " + notification.getParameter());
+                       
                     }
                 }
                 

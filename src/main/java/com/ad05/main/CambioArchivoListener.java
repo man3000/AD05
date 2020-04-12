@@ -5,6 +5,7 @@
  */
 package com.ad05.main;
 
+import com.ad05.util.DatosConexion;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -19,12 +20,17 @@ import org.postgresql.PGNotification;
  */
 public class CambioArchivoListener extends Thread {
 
-    private Connection conn;
     private PGConnection pgconn;
+    private Connection conn;
 
-    public CambioArchivoListener(Connection conn) {
-        this.conn = conn;
+    private Sincro sincro;
+
+    public CambioArchivoListener(DatosConexion datos, Sincro s) {
+
+        this.sincro = s;
         try {
+
+            this.conn = App.conectarDB(datos);
             pgconn = conn.unwrap(PGConnection.class);
 
             Statement stmt = conn.createStatement();
@@ -32,6 +38,7 @@ public class CambioArchivoListener extends Thread {
             stmt.execute("LISTEN cambio_archivo");
             stmt.close();
 
+            //conn.close();
         } catch (SQLException ex) {
             System.out.println("El error en la notificación es: " + ex.getMessage());
         }
@@ -41,17 +48,19 @@ public class CambioArchivoListener extends Thread {
     public void run() {
         while (true) {
             try {
+
                 PGNotification notifications[] = pgconn.getNotifications();
-                
+
                 if (notifications != null) {
-                    
+
                     for (PGNotification notification : notifications) {
-                        System.out.println("Se recibido una notificación: " + notification.getParameter());
+                        System.out.println("Se ha insertado el archivo con id " + notification.getParameter());
+                        sincro.sincronizarArchivo(Integer.parseInt(notification.getParameter()));
                     }
                 }
-                
+
                 Thread.sleep(500);
-                
+
             } catch (SQLException ex) {
                 Logger.getLogger(CambioArchivoListener.class.getName()).log(Level.SEVERE, null, ex);
             } catch (InterruptedException ex) {

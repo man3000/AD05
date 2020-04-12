@@ -33,7 +33,7 @@ import javax.swing.JOptionPane;
  *
  * @author Manuel
  */
-public class App extends javax.swing.JFrame {
+public class App extends javax.swing.JFrame implements Sincro {
 
     static String dir = System.getProperty("user.dir");
     static String sep = File.separator;
@@ -56,11 +56,29 @@ public class App extends javax.swing.JFrame {
 
         File f = new File(datosConexion.getApp().get("directory"));
 
-        sincroCarpetas(f);
-        sincroArchivos(f);
+        Thread hiloSincroCarpetaLocal = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while (true) {
+                    System.out.println("sincronizando");
+                    sincroCarpetas(f);
+                    sincroArchivos(f);
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException ex) {
+                        Logger.getLogger(App.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                }
+            }
+        });
+
+        hiloSincroCarpetaLocal.start();
 
         sincroCarpetasNube();
         sincroArchivosNube();
+
+        new CambioArchivoListener(datosConexion, this).start();
+        //new CambioDirectorioListener(conn, this).start();
 
     }
 
@@ -120,13 +138,6 @@ public class App extends javax.swing.JFrame {
         App app = new App();
         app.setVisible(true);
 
-        try {
-            Connection conn = conectarDB(datosConexion);
-            new CambioArchivoListener(conn).start();
-            new CambioDirectorioListener(conn).start();
-        } catch (SQLException ex) {
-            Logger.getLogger(App.class.getName()).log(Level.SEVERE, null, ex);
-        }
     }
 
     private void cargarDatosConfigJson(File f) {
@@ -229,10 +240,8 @@ public class App extends javax.swing.JFrame {
 
         long id = 0;
 
-        try {
-            Connection conn = conectarDB(datosConexion);
-
-            PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+        try (Connection conn = conectarDB(datosConexion);
+                PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);) {
 
             pstmt.setString(1, nombreCarpeta);
 
@@ -267,12 +276,9 @@ public class App extends javax.swing.JFrame {
         String ruta = datosConexion.getApp().get("directory") + dir.substring(1) + File.separator + archivo;
         File file = new File(ruta);
 
-        Connection conn;
+        try (Connection conn = conectarDB(datosConexion)) {
 
-        try {
-            conn = conectarDB(datosConexion);
-
-            int idDir = obtenerIdDir(dir, conn);
+            int idDir = obtenerIdDir(dir);
 
             FileInputStream fis = new FileInputStream(file);
 
@@ -293,6 +299,8 @@ public class App extends javax.swing.JFrame {
             //Cerrramos a consulta e o arquivo aberto
             ps.close();
             fis.close();
+
+            conn.close();
         } catch (SQLException ex) {
             if (ex.getMessage().contains("restricción de unicidad")) {
             } else {
@@ -313,6 +321,7 @@ public class App extends javax.swing.JFrame {
         try {
 
             conn = conectarDB(datosConexion);
+
             conn.setAutoCommit(false);
 
             ArrayList<CallableStatement> comandos = new ArrayList<>();
@@ -335,6 +344,8 @@ public class App extends javax.swing.JFrame {
                 comando.close();
             }
 
+            conn.close();
+
         } catch (FileNotFoundException ex) {
             Logger.getLogger(App.class.getName()).log(Level.SEVERE, null, ex);
         } catch (IOException ex) {
@@ -347,52 +358,13 @@ public class App extends javax.swing.JFrame {
             }
         }
 
-        /*try {
-            Connection conn = conectarDB(datosConexion);
-            
-            String sqlBorrarArchivos = "drop table if exists archivos;";
-            String sqlBorrarDirectorios = "drop table if exists directorios;";
-            String sqlTableCreationDirectorios = "create table if not exists "
-            + "directorios(id serial, nombre text, primary key (id), "
-            + "constraint nombre_unico unique (nombre));";
-            String sqlTableCreationArchivos = "create table if not exists "
-            + "archivos(id serial, nombre text, archivo bytea, "
-            + "dir integer, primary key (id), "
-            + "constraint nombre_dir_unico unique (nombre, dir));";
-            
-            CallableStatement createFunction3 = conn.prepareCall(sqlBorrarDirectorios);
-            CallableStatement createFunction4 = conn.prepareCall(sqlBorrarArchivos);
-            
-            
-            CallableStatement createFunction = conn.prepareCall(sqlTableCreationDirectorios);
-            CallableStatement createFunction2 = conn.prepareCall(sqlTableCreationArchivos);
-            
-            createFunction3.execute();
-            createFunction4.execute();
-            
-            createFunction.execute();
-            createFunction2.execute();
-            
-            
-            
-            createFunction.close();
-            createFunction2.close();
-            
-            createFunction3.close();
-            createFunction4.close();
-            
-            insertarCarpetaRaiz(conn);
-            
-            } catch (SQLException ex) {
-            System.out.println("El error está en: " + ex.getMessage());
-            }*/
     }
 
-    private int obtenerIdDir(String dir, Connection conn) {
+    private int obtenerIdDir(String dir) {
 
-        try {
+        String sql = "select id from directorios where nombre = ?";
 
-            String sql = "select id from directorios where nombre = ?";
+        try (Connection conn = conectarDB(datosConexion)) {
 
             PreparedStatement pst = conn.prepareStatement(sql);
             pst.setString(1, dir);
@@ -410,17 +382,16 @@ public class App extends javax.swing.JFrame {
 
     private void insertarCarpetaRaiz() {
 
-        Connection conn;
         String sql = "insert into directorios(nombre) values (?);";
 
-        try {
-
-            conn = conectarDB(datosConexion);
-            PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+        try (Connection conn = conectarDB(datosConexion);
+                PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);) {
 
             pstmt.setString(1, ".");
 
             pstmt.executeUpdate();
+
+            conn.close();
 
         } catch (SQLException ex) {
             if (ex.getMessage().contains("restricción de unicidad")) {
@@ -433,15 +404,11 @@ public class App extends javax.swing.JFrame {
     private void sincroCarpetasNube() {
         File dir = null;
 
-        try {
+        String sql = "select * from directorios;";
 
-            Connection conn = conectarDB(datosConexion);
-
-            String sql = "select * from directorios;";
-
-            PreparedStatement pst = conn.prepareStatement(sql);
-
-            ResultSet rs = pst.executeQuery();
+        try (Connection conn = conectarDB(datosConexion);
+                PreparedStatement pst = conn.prepareStatement(sql);
+                ResultSet rs = pst.executeQuery();) {
 
             while (rs.next()) {
                 dir = new File(rs.getString("nombre").replace(".", datosConexion.getApp().get("directory")));
@@ -452,6 +419,8 @@ public class App extends javax.swing.JFrame {
 
                 }
             }
+
+            conn.close();
 
         } catch (SQLException ex) {
             Logger.getLogger(App.class.getName()).log(Level.SEVERE, null, ex);
@@ -464,15 +433,11 @@ public class App extends javax.swing.JFrame {
     private void sincroArchivosNube() {
         File arch = null;
 
-        try {
+        String sql = "select archivos.nombre as nombre_archivo, archivos.archivo, directorios.nombre as nombre_directorio from archivos, directorios where archivos.dir = directorios.id;";
 
-            Connection conn = conectarDB(datosConexion);
-
-            String sql = "select archivos.nombre as nombre_archivo, archivos.archivo, directorios.nombre as nombre_directorio from archivos, directorios where archivos.dir = directorios.id;";
-
-            PreparedStatement pst = conn.prepareStatement(sql);
-
-            ResultSet rs = pst.executeQuery();
+        try (Connection conn = conectarDB(datosConexion);
+                PreparedStatement pst = conn.prepareStatement(sql);
+                ResultSet rs = pst.executeQuery();) {
 
             while (rs.next()) {
                 arch = new File(rs.getString("nombre_directorio").replace(".", datosConexion.getApp().get("directory")) + File.separator + rs.getString("nombre_archivo"));
@@ -488,6 +453,8 @@ public class App extends javax.swing.JFrame {
 
             pst.close();
             rs.close();
+
+            conn.close();
 
         } catch (SQLException ex) {
             Logger.getLogger(App.class.getName()).log(Level.SEVERE, null, ex);
@@ -507,6 +474,39 @@ public class App extends javax.swing.JFrame {
         }
 
         flujoDatos.close();
+    }
+
+    @Override
+    public void sincronizarArchivo(int id) {
+
+        File arch;
+
+        String sql = "select archivos.nombre as nombre_archivo, archivos.archivo, directorios.nombre as nombre_directorio from archivos, directorios where archivos.dir = directorios.id and archivos.id = ?;";
+
+        try (Connection conn = conectarDB(datosConexion);
+                PreparedStatement pst = conn.prepareStatement(sql);) {
+
+            pst.setInt(1, id);
+            ResultSet rs = pst.executeQuery();
+
+            rs.next();
+            arch = new File(rs.getString("nombre_directorio").replace(".", datosConexion.getApp().get("directory")) + File.separator + rs.getString("nombre_archivo"));
+            if (!arch.exists()) {
+                System.out.println("el archivo " + arch.getAbsolutePath() + " no existe");
+                byte[] imgBytes = null;
+
+                imgBytes = rs.getBytes("archivo");
+                escribirArchivo(imgBytes, arch.getAbsolutePath());
+                System.out.println("Se descargó el fichero " + arch.getAbsolutePath());
+            }
+
+            conn.close();
+
+        } catch (SQLException ex) {
+            Logger.getLogger(App.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
+            Logger.getLogger(App.class.getName()).log(Level.SEVERE, null, ex);
+        }
     }
 
 
