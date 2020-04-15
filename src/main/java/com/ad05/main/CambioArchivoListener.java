@@ -56,14 +56,14 @@ public class CambioArchivoListener extends Thread {
                     for (PGNotification notification : notifications) {
                         System.out.println("Se ha insertado el archivo con id " + notification.getParameter());
                         sincro.sincronizarArchivo(Integer.parseInt(notification.getParameter()));
+                        sincro.Log("Se ha insertado el archivo con id " + notification.getParameter());
                     }
                 }
 
                 Thread.sleep(500);
+                sincro.blinkLED();
 
-            } catch (SQLException ex) {
-                Logger.getLogger(CambioArchivoListener.class.getName()).log(Level.SEVERE, null, ex);
-            } catch (InterruptedException ex) {
+            } catch (SQLException | InterruptedException ex) {
                 Logger.getLogger(CambioArchivoListener.class.getName()).log(Level.SEVERE, null, ex);
             }
         }

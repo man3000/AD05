@@ -5,6 +5,7 @@
  */
 package com.ad05.main;
 
+import com.ad05.util.DatosConexion;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -24,10 +25,13 @@ public class CambioDirectorioListener extends Thread {
     
     private Sincro sincro;
 
-    public CambioDirectorioListener(Connection conn, Sincro s) {
-        this.conn = conn;
+    public CambioDirectorioListener(DatosConexion datosConexion, Sincro s) {
+        
+        this.sincro = s;
         
         try {
+            
+            this.conn = App.conectarDB(datosConexion);
             pgconn = conn.unwrap(PGConnection.class);
 
             Statement stmt = conn.createStatement();
@@ -35,7 +39,6 @@ public class CambioDirectorioListener extends Thread {
             stmt.execute("LISTEN cambio_directorio");
             stmt.close();
             
-            conn.close();
 
         } catch (SQLException ex) {
             System.out.println("El error en la notificación es: " + ex.getMessage());
@@ -52,7 +55,8 @@ public class CambioDirectorioListener extends Thread {
                     
                     for (PGNotification notification : notifications) {
                         System.out.println("Se ha insertado un directorio con id " + notification.getParameter());
-                       
+                        sincro.sincronizarDirectorio(Integer.parseInt(notification.getParameter()));
+                        sincro.Log("Se ha insertado un directorio con id " + notification.getParameter());
                     }
                 }
                 

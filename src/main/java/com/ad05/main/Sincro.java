@@ -12,5 +12,8 @@ package com.ad05.main;
 public interface Sincro {
     
     public void sincronizarArchivo(int id);
+    public void sincronizarDirectorio(int id);
+    public void blinkLED();
+    public void Log(String s);
     
 }

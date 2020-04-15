@@ -8,6 +8,7 @@ package com.ad05.main;
 import com.ad05.util.DatosConexion;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
+import java.awt.Color;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -78,7 +79,10 @@ public class App extends javax.swing.JFrame implements Sincro {
         sincroArchivosNube();
 
         new CambioArchivoListener(datosConexion, this).start();
-        //new CambioDirectorioListener(conn, this).start();
+        new CambioDirectorioListener(datosConexion, this).start();
+
+        this.jLabelLED.setOpaque(true);
+        this.jLabelLED.setBackground(Color.GREEN);
 
     }
 
@@ -91,17 +95,57 @@ public class App extends javax.swing.JFrame implements Sincro {
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
     private void initComponents() {
 
+        jTextAreaLog = new javax.swing.JTextArea();
+        jLabelLED = new javax.swing.JLabel();
+        jLabelSincronizacion = new javax.swing.JLabel();
+        jMenuBar1 = new javax.swing.JMenuBar();
+        jMenuArchivo = new javax.swing.JMenu();
+        jMenuItemSalir = new javax.swing.JMenuItem();
+
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
+
+        jTextAreaLog.setColumns(20);
+        jTextAreaLog.setRows(5);
+
+        jLabelSincronizacion.setHorizontalAlignment(javax.swing.SwingConstants.RIGHT);
+        jLabelSincronizacion.setText("Sincronización");
+
+        jMenuArchivo.setText("Archivo");
+
+        jMenuItemSalir.setAccelerator(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_X, java.awt.event.InputEvent.CTRL_MASK));
+        jMenuItemSalir.setText("Salir");
+        jMenuArchivo.add(jMenuItemSalir);
+
+        jMenuBar1.add(jMenuArchivo);
+
+        setJMenuBar(jMenuBar1);
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 400, Short.MAX_VALUE)
+            .addGroup(layout.createSequentialGroup()
+                .addContainerGap()
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(layout.createSequentialGroup()
+                        .addComponent(jTextAreaLog)
+                        .addContainerGap())
+                    .addGroup(layout.createSequentialGroup()
+                        .addComponent(jLabelSincronizacion, javax.swing.GroupLayout.DEFAULT_SIZE, 648, Short.MAX_VALUE)
+                        .addGap(18, 18, 18)
+                        .addComponent(jLabelLED, javax.swing.GroupLayout.PREFERRED_SIZE, 12, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addGap(18, 18, 18))))
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 300, Short.MAX_VALUE)
+            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
+                .addContainerGap()
+                .addComponent(jTextAreaLog, javax.swing.GroupLayout.DEFAULT_SIZE, 288, Short.MAX_VALUE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.CENTER)
+                    .addComponent(jLabelLED, javax.swing.GroupLayout.PREFERRED_SIZE, 13, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(jLabelSincronizacion, javax.swing.GroupLayout.PREFERRED_SIZE, 23, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addGap(1, 1, 1))
         );
 
         pack();
@@ -137,6 +181,8 @@ public class App extends javax.swing.JFrame implements Sincro {
         /* Create and display the form */
         App app = new App();
         app.setVisible(true);
+
+        app.jTextAreaLog.append(datosConexion.getApp().get("directory") + "\n");
 
     }
 
@@ -237,13 +283,14 @@ public class App extends javax.swing.JFrame implements Sincro {
     private void insertarCarpeta(String nombreCarpeta) {
 
         String sql = "insert into public.directorios(nombre) values(?)";
+        String nombreCarpetaFormateado = nombreCarpeta.replace(File.separator, "/");
 
         long id = 0;
 
         try (Connection conn = conectarDB(datosConexion);
                 PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);) {
 
-            pstmt.setString(1, nombreCarpeta);
+            pstmt.setString(1, nombreCarpetaFormateado);
 
             int affectedRows = pstmt.executeUpdate();
             // check the affected rows 
@@ -271,9 +318,10 @@ public class App extends javax.swing.JFrame implements Sincro {
 
     }
 
+    //Método para escribir los archivos locales en la base de datos
     private void insertarArchivo(String archivo, String dir) {
         //Collemos o arquivo
-        String ruta = datosConexion.getApp().get("directory") + dir.substring(1) + File.separator + archivo;
+        String ruta = datosConexion.getApp().get("directory") + dir.substring(1) + "/" + archivo;
         File file = new File(ruta);
 
         try (Connection conn = conectarDB(datosConexion)) {
@@ -362,12 +410,13 @@ public class App extends javax.swing.JFrame implements Sincro {
 
     private int obtenerIdDir(String dir) {
 
+        String dirFormateado = dir.replace(File.separator, "/");
         String sql = "select id from directorios where nombre = ?";
 
         try (Connection conn = conectarDB(datosConexion)) {
 
             PreparedStatement pst = conn.prepareStatement(sql);
-            pst.setString(1, dir);
+            pst.setString(1, dirFormateado);
             ResultSet rs = pst.executeQuery();
 
             rs.next();
@@ -411,7 +460,7 @@ public class App extends javax.swing.JFrame implements Sincro {
                 ResultSet rs = pst.executeQuery();) {
 
             while (rs.next()) {
-                dir = new File(rs.getString("nombre").replace(".", datosConexion.getApp().get("directory")));
+                dir = new File(rs.getString("nombre").replace(".", datosConexion.getApp().get("directory")).replace("/", File.separator));
                 if (!dir.exists()) {
                     if (!dir.mkdirs()) {
                         throw new FileNotFoundException();
@@ -440,7 +489,7 @@ public class App extends javax.swing.JFrame implements Sincro {
                 ResultSet rs = pst.executeQuery();) {
 
             while (rs.next()) {
-                arch = new File(rs.getString("nombre_directorio").replace(".", datosConexion.getApp().get("directory")) + File.separator + rs.getString("nombre_archivo"));
+                arch = new File(rs.getString("nombre_directorio").replace(".", datosConexion.getApp().get("directory")) + File.separator + rs.getString("nombre_archivo").replace("/", File.separator));
                 if (!arch.exists()) {
                     System.out.println("el archivo " + arch.getAbsolutePath() + " no existe");
                     byte[] imgBytes = null;
@@ -464,8 +513,9 @@ public class App extends javax.swing.JFrame implements Sincro {
 
     }
 
+    //Método para escribir lo archivos en el directorio local
     private void escribirArchivo(byte[] imgBytes, String absolutePath) throws FileNotFoundException, IOException {
-        File out = new File(absolutePath);
+        File out = new File(absolutePath.replace("/", File.separator));
 
         FileOutputStream flujoDatos = new FileOutputStream(out);
 
@@ -474,6 +524,12 @@ public class App extends javax.swing.JFrame implements Sincro {
         }
 
         flujoDatos.close();
+    }
+    
+    private void escribirDirectorio(String absolutePath){
+        
+        File dir = new File(absolutePath);
+        dir.mkdirs();
     }
 
     @Override
@@ -490,14 +546,20 @@ public class App extends javax.swing.JFrame implements Sincro {
             ResultSet rs = pst.executeQuery();
 
             rs.next();
-            arch = new File(rs.getString("nombre_directorio").replace(".", datosConexion.getApp().get("directory")) + File.separator + rs.getString("nombre_archivo"));
+            arch = new File(rs.getString("nombre_directorio").replace(".", datosConexion.getApp().get("directory")) + File.separator + rs.getString("nombre_archivo").replace("/", File.separator));
             if (!arch.exists()) {
-                System.out.println("el archivo " + arch.getAbsolutePath() + " no existe");
+                System.out.println("El archivo " + arch.getAbsolutePath() + " no existe");
+
+                Log("El archivo " + arch.getAbsolutePath() + " no existe en local");
+
                 byte[] imgBytes = null;
 
                 imgBytes = rs.getBytes("archivo");
                 escribirArchivo(imgBytes, arch.getAbsolutePath());
                 System.out.println("Se descargó el fichero " + arch.getAbsolutePath());
+
+                Log("Se descargó el fichero " + arch.getAbsolutePath());
+
             }
 
             conn.close();
@@ -509,7 +571,57 @@ public class App extends javax.swing.JFrame implements Sincro {
         }
     }
 
+    @Override
+    public void sincronizarDirectorio(int id) {
+        
+        String path = "";
+        String sql = "select nombre from directorios where id = ?";
+        
+        try (Connection conn = conectarDB(datosConexion)) {
+
+            PreparedStatement pst = conn.prepareStatement(sql);
+            pst.setInt(1, id);
+            ResultSet rs = pst.executeQuery();
+
+            rs.next();
+            
+            path =  rs.getString("nombre").replace("./", datosConexion.getApp().get("directory") + File.separator).replace("/", File.separator);
+            Log(path);
+            escribirDirectorio(path);
+            
+
+        } catch (SQLException ex) {
+            Logger.getLogger(App.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        
+        
+                
+    }
+    
+    
+
+    @Override
+    public void blinkLED() {
+        if (this.jLabelLED.getBackground().equals(Color.GREEN)) {
+            this.jLabelLED.setBackground(Color.WHITE);
+        } else {
+            this.jLabelLED.setBackground(Color.GREEN);
+        }
+    }
+
+    @Override
+    public void Log(String s) {
+        this.jTextAreaLog.append(s + "\n");
+    }
+
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
+    private javax.swing.JLabel jLabelLED;
+    private javax.swing.JLabel jLabelSincronizacion;
+    private javax.swing.JMenu jMenuArchivo;
+    private javax.swing.JMenuBar jMenuBar1;
+    private javax.swing.JMenuItem jMenuItemSalir;
+    private javax.swing.JTextArea jTextAreaLog;
     // End of variables declaration//GEN-END:variables
+
 }
