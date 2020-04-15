@@ -1,7 +1,6 @@
 /*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
+ * Manuel Alejandro Álvarez Pérez
+ * AD05
  */
 package com.ad05.main;
 
@@ -36,15 +35,23 @@ import javax.swing.JOptionPane;
  */
 public class App extends javax.swing.JFrame implements Sincro {
 
+    //Directorio donde se encuentra el proyecto
     static String dir = System.getProperty("user.dir");
+    
+    //Separador de archivos de OS de ejecución
     static String sep = File.separator;
+    
+    //Ruta del archivo config.json relativa al directorio de ejecución del proyecto
     static final File configJson = new File(dir + sep + "src" + sep + "main" + sep + "java" + sep + "com" + sep + "ad05" + sep + "util" + sep + "config.json");
+    
+    //Ruta en el que se encuentra un script SQL para la creación de tablas y triggers necesarios
     static final File initScript = new File(dir + sep + "src" + sep + "main" + sep + "java" + sep + "com" + sep + "ad05" + sep + "util" + sep + "initScript.sql");
 
+    //Donde se guardan los datos de conexión de la BD y el directorio de trabajo
     private static DatosConexion datosConexion;
 
     /**
-     * Creates new form App
+     * Crea un nuevo formulario App
      */
     public App() {
         initComponents();
@@ -185,7 +192,8 @@ public class App extends javax.swing.JFrame implements Sincro {
         app.jTextAreaLog.append(datosConexion.getApp().get("directory") + "\n");
 
     }
-
+    
+    //Método con el que obtenemos los datos de conexión y el directorio de trabajo del archivo json
     private void cargarDatosConfigJson(File f) {
         File file = f;
         if (file.exists()) {
@@ -225,6 +233,12 @@ public class App extends javax.swing.JFrame implements Sincro {
 
     }
 
+    /**
+     * Obtenemos una instancia de la conexión a la base de datos
+     * @param datos
+     * @return
+     * @throws SQLException
+     */
     public static Connection conectarDB(DatosConexion datos) throws SQLException {
         String url = datos.getDbConnection().get("address");
         String db = datos.getDbConnection().get("name");
@@ -245,6 +259,7 @@ public class App extends javax.swing.JFrame implements Sincro {
 
     }
 
+    //Método para sincronizar los directorios locales a la BD (usado en un Hilo)
     private void sincroCarpetas(File file) {
 
         File[] carpetas = file.listFiles();
@@ -261,6 +276,7 @@ public class App extends javax.swing.JFrame implements Sincro {
 
     }
 
+    //Método para sincronizar los archivos locales a la BD (usado en un Hilo)
     private void sincroArchivos(File file) {
 
         File[] archivos = file.listFiles();
@@ -280,6 +296,7 @@ public class App extends javax.swing.JFrame implements Sincro {
 
     }
 
+    //Método para escribir los directorios locales en la base de datos
     private void insertarCarpeta(String nombreCarpeta) {
 
         String sql = "insert into public.directorios(nombre) values(?)";
@@ -362,6 +379,7 @@ public class App extends javax.swing.JFrame implements Sincro {
 
     }
 
+    //Creamos las tablas si no existen
     private void crearTablas() {
 
         Connection conn = null;
@@ -407,7 +425,8 @@ public class App extends javax.swing.JFrame implements Sincro {
         }
 
     }
-
+    
+    //Obtenemos el id de un directorio en la BD dado su nombre
     private int obtenerIdDir(String dir) {
 
         String dirFormateado = dir.replace(File.separator, "/");
@@ -428,7 +447,8 @@ public class App extends javax.swing.JFrame implements Sincro {
         }
 
     }
-
+    
+    //Insertamos el directorio raíz . en la BD
     private void insertarCarpetaRaiz() {
 
         String sql = "insert into directorios(nombre) values (?);";
@@ -449,7 +469,8 @@ public class App extends javax.swing.JFrame implements Sincro {
             }
         }
     }
-
+    
+    //Sinconizamos los directorios de la BD al directorio local
     private void sincroCarpetasNube() {
         File dir = null;
 
@@ -478,7 +499,8 @@ public class App extends javax.swing.JFrame implements Sincro {
             System.out.println("No se ha podido crear el directorio " + dir.getAbsolutePath());
         }
     }
-
+    
+    //Sincronizamos los archivos de la BD al directorio local
     private void sincroArchivosNube() {
         File arch = null;
 
@@ -532,6 +554,10 @@ public class App extends javax.swing.JFrame implements Sincro {
         dir.mkdirs();
     }
 
+    /**
+     * Sincroniza el archivo con id proporcionado al directorio local
+     * @param id
+     */
     @Override
     public void sincronizarArchivo(int id) {
 
@@ -571,6 +597,10 @@ public class App extends javax.swing.JFrame implements Sincro {
         }
     }
 
+    /**
+     * Sincroniza el directorio con id proporcionado al directorio local
+     * @param id
+     */
     @Override
     public void sincronizarDirectorio(int id) {
         
@@ -598,8 +628,9 @@ public class App extends javax.swing.JFrame implements Sincro {
                 
     }
     
-    
-
+    /**
+     * Método para hacer parpadear un indicador de sincronización
+     */
     @Override
     public void blinkLED() {
         if (this.jLabelLED.getBackground().equals(Color.GREEN)) {
@@ -609,6 +640,10 @@ public class App extends javax.swing.JFrame implements Sincro {
         }
     }
 
+    /**
+     * Imprimirl una línea el Log de la GUI
+     * @param s
+     */
     @Override
     public void Log(String s) {
         this.jTextAreaLog.append(s + "\n");

@@ -1,7 +1,6 @@
 /*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
+ * Manuel Alejandro Álvarez Pérez
+ * AD05
  */
 package com.ad05.main;
 
@@ -15,7 +14,7 @@ import org.postgresql.PGConnection;
 import org.postgresql.PGNotification;
 
 /**
- *
+ * Clase que implementa el hilo que se encarga de observar cambios de archivos en la BD
  * @author Manuel
  */
 public class CambioArchivoListener extends Thread {
@@ -25,6 +24,11 @@ public class CambioArchivoListener extends Thread {
 
     private Sincro sincro;
 
+    /**
+     * Constructor para esta clase
+     * @param datos
+     * @param s
+     */
     public CambioArchivoListener(DatosConexion datos, Sincro s) {
 
         this.sincro = s;
@@ -44,6 +48,7 @@ public class CambioArchivoListener extends Thread {
         }
     }
 
+    //Hilo que observa cambios
     @Override
     public void run() {
         while (true) {
